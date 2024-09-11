@@ -137,7 +137,7 @@ wss.on('connection', (ws, req) => {
     });
       
     ws.on('close', () => {
-        console.log('Connection closed with user: someUser');
+        console.log(`Connection closed with user: ${ws.user.username}`);
     });
 });
 
