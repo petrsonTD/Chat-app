@@ -41,7 +41,7 @@ function Login({ handleLogin }) {
 
         <div className="flex items-center justify-between">
           <button className="mt-5 inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded text-white bg-sky-500 hover:bg-sky-600 focus:bg-sky-700 transition duration-300 ease-in-out">
-          Submit
+            Login
           </button>
         </div>
       </div>

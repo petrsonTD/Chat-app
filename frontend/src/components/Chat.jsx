@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-function Chat({ws, messages}) {
+function Chat({ws, setWs, setLogin, messages, setMessages}) {
   const [input, setInput] = useState("");
 
   function sendMessage() {
@@ -12,9 +12,42 @@ function Chat({ws, messages}) {
     }
   }
 
+  async function handleLogout() {
+    try {
+      // Request the server to clear the session
+      const response = await fetch("http://localhost:8080/logout", {
+        method: "POST",
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Logout failed!");
+      }
+
+      // Close WebSocket connection
+      if (ws) {
+        ws.close();
+      }
+
+      // Clear state and redirect to login
+      setLogin(false);
+      setMessages([]);
+      setWs(null);
+      console.log("Logged out successfully");
+    } catch (error) {
+      console.error("Error during logout:", error.message);
+    }
+  };
+
   return (      
     <div className="p-6 min-h-screen bg-slate-900 flex flex-col">
-      <h1 className="text-slate-50 text-3xl">Chat App</h1>
+      <div className="flex flex-row w-full justify-between">
+        <h1 className="text-slate-50 text-3xl">chat-app</h1>
+        <button onClick={handleLogout} className="mt-1 ml-3 justify-center py-2 px-4 border border-transparent text-sm font-medium rounded text-white bg-sky-500 hover:bg-sky-600 focus:bg-sky-700 transition duration-300 ease-in-out">
+          Logout
+        </button>
+      </div>
       <div className="bg-slate-300 mt-5 p-2 grow overflow-y-scroll">
         {messages.map(msg => (
           <p key={msg.id}>

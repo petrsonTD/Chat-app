@@ -19,7 +19,33 @@ const corsMiddleware = cors({
 const server = http.createServer((req, res) => {
     // Apply CORS middleware to handle preflight requests
     corsMiddleware(req, res, () => {
-        if (req.method === 'POST') {
+        if (req.method === 'POST' && req.url === '/logout') {
+            const cookies = cookie.parse(req.headers.cookie || '');
+            const sessionId = cookies[SESSION_COOKIE_NAME];
+      
+            // Check if session exists
+            if (sessionId && sessions[sessionId]) {
+                // Remove session from the sessions object
+                delete sessions[sessionId];
+      
+                // Clear the session cookie
+                res.setHeader(
+                    'Set-Cookie',
+                    cookie.serialize(SESSION_COOKIE_NAME, '', {
+                        httpOnly: true,
+                        secure: true,
+                        sameSite: 'strict',
+                        maxAge: 0, // Expire immediately
+                    })
+                );
+      
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ message: 'Logged out successfully' }));
+            } else {
+                res.writeHead(401, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: 'No active session' }));
+            }
+        } else if (req.method === 'POST' && req.url === '/login') {
             let body = '';
             req.on('data', (chunk) => {
                 body += chunk.toString();
@@ -101,7 +127,7 @@ wss.on('connection', (ws, req) => {
             ORDER BY messages.timestamp DESC
             LIMIT 5
         `);
-        const previousMessages = selectQuery.all();
+        const previousMessages = selectQuery.all().reverse();
     
         // Send messages as an array or individually to the new client
         previousMessages.forEach((row) => {

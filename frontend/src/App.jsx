@@ -9,7 +9,7 @@ function App() {
 
   const loginUser = async (login) => {
     try {
-      const response = await fetch("http://localhost:8080", {
+      const response = await fetch("http://localhost:8080/login", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -80,7 +80,13 @@ function App() {
   return (
     <>
       {!login && <Login handleLogin={handleLogin} />}
-      <Chat ws={ws} messages={messages} />
+      <Chat
+        ws={ws}
+        setWs={setWs}
+        setLogin={setLogin}
+        messages={messages}
+        setMessages={setMessages}
+      />
     </>
   );
 }
