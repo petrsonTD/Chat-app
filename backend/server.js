@@ -2,6 +2,7 @@ import http from 'http';
 import { WebSocketServer } from 'ws';
 import cookie from 'cookie';
 import Database from 'better-sqlite3';
+import bcryptjs from 'bcryptjs';
 import { createJSONToken, isValidPassword, validateJSONToken } from './utils/auth.js';
 import { nanoid } from 'nanoid';
 import cors from 'cors';
@@ -19,13 +20,69 @@ const corsMiddleware = cors({
 const server = http.createServer((req, res) => {
     // Apply CORS middleware to handle preflight requests
     corsMiddleware(req, res, () => {
-        if (req.method === 'POST' && req.url === '/logout') {
+        if (req.method === 'POST' && req.url === '/signup') {
+            let body = '';
+            req.on('data', (chunk) => {
+                body += chunk.toString();
+            });
+
+            req.on('end', async () => {
+                try {
+                    const { username, password, repeatPassword } = JSON.parse(body);
+                    const getQuery = db.prepare('SELECT * FROM users WHERE username = ?');
+                    const user = getQuery.get(username);
+
+                    let errors = {};
+
+                    if (user) {
+                        errors.username = 'Username already taken!';
+                    }
+
+                    if (password.length < 6) {
+                        errors.password = 'Password must be at least 6 characters!';
+                    }
+
+                    if (password !== repeatPassword) {
+                        errors.repeatPassword = 'Repeated password is different!';
+                    }
+
+                    
+                    if (Object.keys(errors).length > 0) {
+                        res.writeHead(400, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({errors}));
+                        return;
+                    }
+
+                    const newUserId = nanoid();
+                    const hashedPw = await bcryptjs.hash(password, 12);
+
+                    const createQuery = db.prepare('INSERT INTO users (id, username, password, rank) VALUES (?, ?, ?, ?)');
+                    const newUser = createQuery.run(newUserId, username, hashedPw, 'user');
+
+                    const sessionToken = createJSONToken(newUserId, username, false);
+                    const sessionId = nanoid();
+                    sessions[sessionId] = sessionToken;
+
+                    res.setHeader('Set-Cookie', cookie.serialize(SESSION_COOKIE_NAME, sessionId, {
+                        httpOnly: true,
+                        secure: true,
+                        sameSite: 'strict',
+                        maxAge: 3600,
+                    }));
+
+                    res.writeHead(200, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ message: 'Singup and logged in successfully' }));
+                } catch (error) {
+                    console.log('error: ', error);
+                    res.writeHead(400, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ error: 'Invalid request body' }));
+                }
+            });
+        } else if (req.method === 'POST' && req.url === '/logout') {
             const cookies = cookie.parse(req.headers.cookie || '');
             const sessionId = cookies[SESSION_COOKIE_NAME];
       
-            // Check if session exists
             if (sessionId && sessions[sessionId]) {
-                // Remove session from the sessions object
                 delete sessions[sessionId];
       
                 // Clear the session cookie
@@ -57,16 +114,21 @@ const server = http.createServer((req, res) => {
                     const getQuery = db.prepare('SELECT * FROM users WHERE username = ?');
                     const user = getQuery.get(username);
                     if (!user) {
-                        res.writeHead(404);
-                        res.end('Bad username or password!');
+                        res.writeHead(404, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({errors: {
+                            username: 'Bad username or password!',
+                            password: 'Bad username or password!'
+                        }}));
                         return;
                     }
 
                     const pwIsValid = await isValidPassword(password, user.password);
                     if (!pwIsValid) {
-                        res.writeHead(404);
-                        res.end('Bad username or password!');
-                        return;
+                        res.writeHead(404, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({errors: {
+                            username: 'Bad username or password!',
+                            password: 'Bad username or password!'
+                        }}));                        return;
                     }
 
                     const sessionToken = createJSONToken(user.id, user.username, user.rank === 'admin');
@@ -83,7 +145,7 @@ const server = http.createServer((req, res) => {
                     res.writeHead(200, { 'Content-Type': 'application/json' });
                     res.end(JSON.stringify({ message: 'Logged in successfully' }));
                 } catch (error) {
-                    console.log('Error: ', error);
+                    console.log('error: ', error);
                     res.writeHead(400, { 'Content-Type': 'application/json' });
                     res.end(JSON.stringify({ error: 'Invalid request body' }));
                 }
@@ -148,14 +210,14 @@ wss.on('connection', (ws, req) => {
             const createQuery = db.prepare('INSERT INTO messages (id, message, userId) VALUES (?, ?, ?)');
             createQuery.run(newId, decodedMessage, userId);
         } catch (error) {
-            console.log('Error: ', error);
+            console.log('error: ', error);
         }
 
         wss.clients.forEach((client) => {
             if (client.readyState === ws.OPEN) {
                 client.send(JSON.stringify({
                     id: newId,
-                    message:decodedMessage,
+                    message: decodedMessage,
                     username: ws.user.username
                 }));
             }
